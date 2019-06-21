@@ -19,6 +19,8 @@
                  [venantius/accountant "0.2.4"
                   :exclusions [org.clojure/tools.reader]]
                  [quil "2.7.1"]
+                 [cljs-http "0.1.46"]
+                 [com.cognitect/transit-cljs "0.8.256"]
                  [aysylu/loom "1.0.2"]
                  [clojure-term-colors "0.1.0"]
                  ]
@@ -85,7 +87,7 @@
 
 
 
-  :profiles {:dev {:repl-options {:init-ns cat-reagent.repl}
+  :profiles {:dev {:repl-options {:init-ns cat-reagent.repl :timeout 120000}
                    :dependencies [[cider/piggieback "0.4.0"]
                                   [binaryage/devtools "0.9.10"]
                                   [ring/ring-mock "0.3.2"]
