@@ -1,12 +1,8 @@
 (ns cat-reagent.ascii
   (:gen-class)
   (:require [clojure.term.colors :as col]
-            [clojure.string :as s]
-            [quil.core :as q]
-            [quil.middleware :as m]
-            )
-  (:use [cat-reagent.util])
-  )
+            [clojure.string :as s])
+  (:use [cat-reagent.util]))
 
 ;; Functions for drawing ASCII boards.
 (def dim 20)
@@ -52,14 +48,12 @@
 (defn draw-top-bot [] (do (dotimes [t (+ 2 (* 3 dim))] (print "_")) (prn)))
 (defn draw-cells
   [pm]
-  (doseq [x (range 1 (+ 1 (* dim dim)))] 
-    (do 
+  (doseq [x (range 1 (+ 1 (* dim dim)))]
+    (do
         (cond (= 1 (mod x dim))
              (if (contains? window-left-rows (+ 1 (/ (- x 1) dim)))
-               (q/text "\u250A")
-               (print "|")
-               )
-          )
+               (print "\u250A")
+               (print "|")))
        (cond
           (contains? (clojure.set/map-invert pm) (keynum x)) (print (str " " (((keynum x) (clojure.set/map-invert pm)) item-map) " "))
           (contains? v-walls (keynum x)) (print " | ")
@@ -67,69 +61,9 @@
           (contains? right-corners (keynum x)) (print "_| ")
           (contains? closets (keynum x)) (print " c ")
           (contains? obstacles (keynum x)) (print "ooo")
-          :else (print (str " . "))
-          ) 
-       (cond (= 0 (mod x dim)) 
+          :else (print (str " . ")))
+       (cond (= 0 (mod x dim))
              (if (contains? window-right-rows (/ x dim))
                (print "\u250A\n")
-               (print "|\n")
-               )
-          )
-        )
-    )
-  )
+               (print "|\n"))))))
 (defn draw-board [pm] (do (draw-top-bot) (draw-cells pm) (draw-top-bot)))
-
-;; Quil sample functions
-(def size [800 600])
-(defn draw-string
-  [s x]
-  (let [pm (:board s)]
-  (cond
-    (contains? (clojure.set/map-invert pm) (keynum x)) (((keynum x) (clojure.set/map-invert pm)) item-map)
-    :else "."
-    ))
-  )
-(defn draw-rows [s x-step y-step]
-  (doseq [y (map inc (range (* y-step 4)))]
-    (doseq [x (map inc (range (* x-step 4)))]
-      (let [x-coord (* x-step (* 4 y))
-            y-coord (* y-step (* 4 x))
-            ] 
-        (do
-          (q/text (draw-string s (+ x (* (* x-step 4) (- y 1)))) y-coord x-coord)
-          ;(q/text "c" 96 32)
-          ;(println (/  (* x-coord y-coord) 4))
-          ))
-      )
-  ))
-(defn draw
-  [s]
-  (let [fsize-tp (/ (first size) 100)
-        ssize-tp (/ (second size) 100)
-        fsize-np (- (first size) fsize-tp)
-        ssize-np (- (second size) ssize-tp)
-        ]
-    (q/background 000)
-    (q/stroke 255 255 255)
-    (q/line [fsize-tp ssize-tp] [fsize-np ssize-tp])
-    (q/line [fsize-tp ssize-tp] [fsize-tp ssize-np])
-    (q/line [fsize-np ssize-tp] [fsize-np ssize-np])
-    (q/line [fsize-np ssize-np] [fsize-tp ssize-np])
-    (q/text-size 24)
-    (do (draw-rows s fsize-tp ssize-tp))
-    ;(q/text "." (* ssize-tp 4) (* fsize-tp 4))
-    )
-  )
-;(defn draw
-;  []
-;  (q/stroke (q/random 255) (q/random 255) (q/random 255))
-;  (q/stroke-weight (q/random 10))
-;  (q/fill (q/random 255))
-;  (let [diam (q/random 100)
-;        x (q/random (q/width))
-;        y (q/random (q/height))
-;        ]
-;    (q/ellipse x y diam diam)
-;    )
-;  )

@@ -18,11 +18,11 @@
                  [pez/clerk "1.0.0"]
                  [venantius/accountant "0.2.4"
                   :exclusions [org.clojure/tools.reader]]
-                 [quil "2.7.1"]
                  [cljs-http "0.1.46"]
                  [com.cognitect/transit-cljs "0.8.256"]
                  [aysylu/loom "1.0.2"]
                  [clojure-term-colors "0.1.0"]
+                 [bigml/sampling "3.2"]
                  ]
 
   :jvm-opts ["-Xss16m"]
@@ -80,27 +80,27 @@
   {:http-server-root "public"
    :server-port 3449
    :nrepl-port 7002
-   :nrepl-middleware [cider.piggieback/wrap-cljs-repl
-                      ]
+   :nrepl-middleware [cider.piggieback/wrap-cljs-repl]
    :css-dirs ["resources/public/css"]
    :ring-handler cat-reagent.handler/app}
 
 
 
-  :profiles {:dev {:repl-options {:init-ns cat-reagent.repl :timeout 120000}
-                   :dependencies [[cider/piggieback "0.4.0"]
+  :profiles {:dev {;; :repl-options {:init-ns cat-reagent.repl :timeout 120000}
+                   :repl-options {:init-ns cat-reagent.repl :timeout 120000 :nrepl-middleware [cider.piggieback/wrap-cljs-repl]}
+                   :dependencies [[cider/piggieback "0.4.2"]
                                   [binaryage/devtools "0.9.10"]
                                   [ring/ring-mock "0.3.2"]
                                   [ring/ring-devel "1.7.1"]
                                   [prone "1.6.3"]
-                                  [figwheel-sidecar "0.5.18"]
+                                  [figwheel-sidecar "0.5.19"]
                                   [nrepl "0.6.0"]
                                   [pjstadig/humane-test-output "0.9.0"]
                                   
  ]
 
                    :source-paths ["env/dev/clj"]
-                   :plugins [[lein-figwheel "0.5.18"]
+                   :plugins [[lein-figwheel "0.5.19"]
 ]
 
                    :injections [(require 'pjstadig.humane-test-output)

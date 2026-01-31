@@ -1,0 +1,19 @@
+{:source-paths ["src/cljs" "src/cljc"]
+
+ :dependencies [[reagent "0.8.1"]
+                [reagent-utils "0.3.2"]
+                [metosin/reitit "0.3.1"]
+                [pez/clerk "1.0.0"]
+                [venantius/accountant "0.2.4"]
+                [cljs-http "0.1.46"]
+                [com.cognitect/transit-cljs "0.8.256"]]
+
+ ;; Proxy to backend on 3000, serve frontend on 3449
+ :dev-http {3449 {:root "target/cljsbuild/public"
+                  :proxy-url "http://localhost:3000"}}
+
+ :builds {:app {:target :browser
+                :output-dir "target/cljsbuild/public/js"
+                :asset-path "/js"
+                :modules {:app {:init-fn cat-reagent.core/init!}}
+                :devtools {:after-load cat-reagent.core/mount-root}}}}

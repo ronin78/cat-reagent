@@ -41,8 +41,32 @@
 
 (defn pass-state
   [s player]
-  {:board (g/map-pos-to-char s) :message (get-in s [:characters player :message])}
-  )
+  (let [char-data (get-in s [:characters player])
+        loc (:loc char-data)
+        opponent (if (= player :cat) :caretaker :cat)
+        opp-loc (get-in s [:characters opponent :loc])]
+    {:game-over (:game-over s)
+     :turn (:turn s)
+     :board (g/map-pos-to-char s player)
+     :message (get-in s [:characters player :message])
+     :status-message (get-in s [:characters player :status-message])
+     :scores (:scores s)
+     :patrol-tasks (:patrol-tasks s)
+     :turn-number (:turn-number s)
+     :cat-treasure (get-in s [:characters :cat :treasure] 0)
+     :treasure-total 50
+     :caretaker-aware (get-in s [:characters :caretaker :aware] false)
+     ;; Character status
+     :arms-bound (:arms char-data)
+     :legs-bound (:legs char-data)
+     :gagged (or (:in-mouth-mat char-data) (:over-mouth-mat char-data))
+     :in-combat (= loc opp-loc)
+     :has-cursor (some? (:cursor char-data))
+     ;; Location info
+     :at-phone (contains? (:phone-map s) loc)
+     :at-treasure (contains? (:treasure-map s) loc)
+     :at-door (contains? (:door-list s) loc)
+     :at-sabotaged (contains? (:sabotaged s) loc)}))
 (defn pass-play
   [m]
   (let [[command player] (map #(keystring->keyword (val %)) m)] 
@@ -55,6 +79,15 @@
    :body (-> (let [p (partial get-parameter _request)]
                (str (json/write-str (pass-state @g/s (keystring->keyword (p :player)))))
                ))})
+(defn restart-handler
+  [_request]
+  {:status 200
+   :headers {"Content-Type" "text/json"}
+   :body (-> (let [p (partial get-parameter _request)]
+               (str (json/write-str (pass-state (g/restart) (keystring->keyword (p :player)))))
+               ))  
+   }
+  )
 (defn play-handler
   [_request]
   {:status 200
@@ -78,11 +111,16 @@
      ["/get-state"
       ["" {:get {:handler get-state-handler}}]
       ]
+     ["/restart"
+      ["" {:get {:handler restart-handler}}]
+      ]
      ["/items"
       ["" {:get {:handler index-handler}}]
       ["/:item-id" {:get {:handler index-handler
                           :parameters {:path {:item-id int?}}}}]]
-     ["/about" {:get {:handler index-handler}}]])
+     ["/about" {:get {:handler index-handler}}]
+     ["/cat-page" {:get {:handler index-handler}}]
+     ["/care-page" {:get {:handler index-handler}}]])
    (reitit-ring/routes
     (reitit-ring/create-resource-handler {:path "/" :root "/public"})
     (reitit-ring/create-default-handler))
