@@ -12,9 +12,12 @@
   [s]
   (let [turn (:turn s)
         legs (if-let [legs-from-map (get-in s [:characters turn :legs])] legs-from-map 0)]
-    (int (Math/floor (- (if-let [max-move (get-in s [:characters turn :max-move])]
-                          max-move
-                          c/default-max-move) (/ legs 3))))))
+    ;; Legs bound at 9+ blocks all movement
+    (if (>= legs 9)
+      0
+      (int (Math/floor (- (if-let [max-move (get-in s [:characters turn :max-move])]
+                            max-move
+                            c/default-max-move) (/ legs 3)))))))
 
 (defn move-cursor
   [s c]

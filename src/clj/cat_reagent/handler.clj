@@ -44,7 +44,9 @@
   (let [char-data (get-in s [:characters player])
         loc (:loc char-data)
         opponent (if (= player :cat) :caretaker :cat)
-        opp-loc (get-in s [:characters opponent :loc])]
+        opp-data (get-in s [:characters opponent])
+        opp-loc (:loc opp-data)
+        in-combat (= loc opp-loc)]
     {:game-over (:game-over s)
      :turn (:turn s)
      :board (g/map-pos-to-char s player)
@@ -56,12 +58,21 @@
      :cat-treasure (get-in s [:characters :cat :treasure] 0)
      :treasure-total 50
      :caretaker-aware (get-in s [:characters :caretaker :aware] false)
+     ;; Noise counter (neighbors get suspicious at 4+)
+     :neighbors (:neighbors s)
      ;; Character status
      :arms-bound (:arms char-data)
      :legs-bound (:legs char-data)
+     :in-mouth-gag (:in-mouth-mat char-data)
+     :over-mouth-gag (:over-mouth-mat char-data)
      :gagged (or (:in-mouth-mat char-data) (:over-mouth-mat char-data))
-     :in-combat (= loc opp-loc)
+     :in-combat in-combat
      :has-cursor (some? (:cursor char-data))
+     ;; Opponent status (only visible when in combat)
+     :opp-arms-bound (when in-combat (:arms opp-data))
+     :opp-legs-bound (when in-combat (:legs opp-data))
+     :opp-in-mouth-gag (when in-combat (:in-mouth-mat opp-data))
+     :opp-over-mouth-gag (when in-combat (:over-mouth-mat opp-data))
      ;; Location info
      :at-phone (contains? (:phone-map s) loc)
      :at-treasure (contains? (:treasure-map s) loc)

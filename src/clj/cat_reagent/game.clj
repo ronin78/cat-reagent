@@ -19,6 +19,9 @@
   (let [pool c/patrol-task-pool
         current-tasks (:patrol-tasks s)
         current-locs (set (map :loc current-tasks))
+        ;; Get wall positions from state
+        walls (set/union (apply set/union (:vwalls s))
+                         (apply set/union (:hwalls s)))
         template (rand-nth pool)
         loc-type (:loc-type template)
         available-locs (case loc-type
@@ -27,6 +30,7 @@
                          :phone (keys (:phone-map s))
                          :room (let [room-positions (set (map u/keynum (range 1 577)))]
                                  (set/difference room-positions
+                                                  walls
                                                   (set (keys (:treasure-map s)))
                                                   (set (keys (:phone-map s)))
                                                   (set (keys (:door-list s)))
@@ -48,7 +52,8 @@
         door-map {(u/keynum (- (* c/num-rows c/row-length) (/ c/row-length 2))) true  ; front door
                   (u/keynum (+ 1 (* 4 c/row-length))) false}                          ; side door
         phone-map (into {} (map #(hash-map % true) (b/rand-non-overlap (set/union wall-set (set (keys door-map))) 2 false)))
-        treasure-map (b/rand-non-overlap (set/union wall-set (set (keys door-map)) (set (keys phone-map))) c/treasure-amt true)
+        ;; Concentrated treasure: 50 treasure in ~15 positions = avg 3.3 per spot
+        treasure-map (b/rand-concentrated-treasure (set/union wall-set (set (keys door-map)) (set (keys phone-map))) c/treasure-amt 15)
         caretaker-face (rand-nth [:up :down :left :right])
         cat-start (first (keys door-map))
         valid-caretaker-positions (set/difference (set (map u/keynum c/space-nums))
@@ -189,17 +194,19 @@
         treasure-map (:treasure-map s)
         in-combat? (st/is-combat? s)
         phone-map (:phone-map s)
+        opp-key (st/opponent-key turn)
+        opp (get-in s [:characters opp-key])
+        opp-arms (or (:arms opp) 0)
         move-map {:m (cond
                        (< (mv/max-move s) 1) (fn [s] (st/update-status s "You cannot move with your legs bound."))
                        (nil? cursor-pos) (fn [s] (ucc s :cursor [char-pos]))
                        (= (last cursor-pos) char-pos) (fn [s] (update-in s [:characters turn] dissoc :cursor))
-                       (and in-combat? (:legs p) (< (u/dice-roll (/ (:legs p) 4)) 4)) (fn [s] (update-and-change (update-in s [:characters turn] dissoc :cursor) "Your opponent blocks your way!"))
-                       (and in-combat? (not (:legs p))
-                            (let [arms (or (:arms p) 0)
-                                  arm-penalty (if (> arms 0) (min 2 (/ arms 3)) 0)
+                       ;; Opponent can only grab/block if their arms aren't too bound
+                       (and in-combat? (< opp-arms 9)
+                            (let [opp-arm-penalty (if (> opp-arms 0) (min 3 (/ opp-arms 3)) 0)
                                   cat-bonus (if (= turn :cat) 1 0)
-                                  my-roll (- (+ (u/dice-roll) cat-bonus) arm-penalty)
-                                  opp-roll (u/dice-roll)]
+                                  my-roll (+ (u/dice-roll) cat-bonus)
+                                  opp-roll (- (u/dice-roll) opp-arm-penalty)]
                               (<= my-roll opp-roll)))
                        (fn [s] (update-and-change (update-in s [:characters turn] dissoc :cursor) "Your opponent grabs you as you try to disengage!"))
                        :else (fn [s]
@@ -218,6 +225,7 @@
                                          has-treasure (and (= turn :cat)
                                                            (contains? (:treasure-map s) dest)
                                                            (<= (or (st/body-part p :arms) 0) 0))
+                                         treasure-value (when has-treasure (get (:treasure-map s) dest))
                                          treasure-noise (when has-treasure (u/dice-roll 1))
                                          base-state (-> s
                                                         (cond-> (= turn :cat) (st/add-footprint char-pos))
@@ -235,7 +243,7 @@
                                                         (cond-> in-combat? (ucc :muffled? false))
                                                         (cond-> in-combat? (ucc :status-message "You escape combat!"))
                                                         (cond-> has-treasure
-                                                          (-> (st/update-current-player :treasure (fnil #(+ 1 %) 0))
+                                                          (-> (st/update-current-player :treasure (fnil #(+ treasure-value %) 0))
                                                               (assoc :treasure-map (dissoc (:treasure-map s) dest))
                                                               (st/mark-treasure-disturbed dest)
                                                               (snd/hear-alert treasure-noise))))
@@ -245,7 +253,7 @@
                                                     (> noise 0) (str "You quietly move " move-length " spaces.")
                                                     :else (str "You silently move " move-length " spaces."))
                                          treasure-msg (when has-treasure
-                                                        (str " You grab treasure! (" (snd/noise-word treasure-noise) ")"))]
+                                                        (str " You grab " treasure-value " treasure! (" (snd/noise-word treasure-noise) ")"))]
                                      (update-and-change base-state (str move-msg treasure-msg)))))))
                   :right (fn [s] (mv/move-cursor s 1))
                   :left  (fn [s] (mv/move-cursor s -1))
@@ -275,7 +283,7 @@
                              (= turn :cat) (st/update-status s "You're the burglar, remember?")
                              :else (update-and-change
                                      (-> s
-                                         (st/victory :caretaker :phone)
+                                         (st/victory :caretaker :911)
                                          (snd/hear-alert noise))
                                      "You call 911! The police are on their way!")))))
                   :f (when (st/is-sabotaged? s char-pos)
@@ -284,6 +292,7 @@
                                at-phone (contains? phone-map char-pos)
                                at-door (contains? (:door-list s) char-pos)]
                            (cond
+                             (> (st/body-part (st/current-player s) :arms) 0) (st/update-status s "You can't fix anything with your arms bound.")
                              (= turn :cat) (st/update-status s "Why would you fix something you sabotaged?")
                              at-phone (update-and-change (st/fix-sabotaged s char-pos) "You fix the phone line!")
                              at-door (update-and-change (st/fix-sabotaged s char-pos) "You unjam the door!")
@@ -299,7 +308,7 @@
                                                (assoc :treasure-map (dissoc (:treasure-map s) char-pos))
                                                (st/mark-treasure-disturbed char-pos)
                                                (snd/hear-alert noise))
-                                           "You picked up 1 treasure! You make a " (snd/noise-word noise) ".")))))
+                                           (str "You picked up " treasure " treasure! You make a " (snd/noise-word noise) "."))))))
                   :i (fn [s] (combat/inventory s))
                   :A (when in-combat? (fn [s] (let [{:keys [state message end-turn?]} (combat/subdue s :arms)]
                                                 (if end-turn?

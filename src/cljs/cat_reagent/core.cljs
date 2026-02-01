@@ -38,7 +38,8 @@
    :black "#000000"
    :yellow "#ffff00"
    :cyan "#00ffff"
-   :red "#ff0000"})
+   :red "#ff0000"
+   :gold "#ffd700"})
 
 ;; State refresh function
 (defn refresh-state []
@@ -171,19 +172,36 @@
    ["\u2588" "#da70d6" "Cursor"]])
 
 (defn symbol-key []
-  [:div {:style {:padding "10px" :background "#1a1a1a" :border-radius "5px"}}
-   [:div {:style {:font-weight "bold" :margin-bottom "5px" :color "#fff"}} "Symbols"]
-   [:div {:style {:font-size "11px" :font-family "monospace"}}
-    (for [[sym color desc] symbol-legend]
-      ^{:key sym} [:div {:style {:display "flex" :align-items "center" :margin "2px 0"}}
-                   [:span {:style {:color color :margin-right "8px" :width "12px" :text-align "center"}} sym]
-                   [:span {:style {:color "#aaa"}} desc]])]])
+  (let [mid (Math/ceil (/ (count symbol-legend) 2))
+        left-col (take mid symbol-legend)
+        right-col (drop mid symbol-legend)]
+    [:div {:style {:padding "10px" :background "#1a1a1a" :border-radius "5px"}}
+     [:div {:style {:font-weight "bold" :margin-bottom "5px" :color "#fff"}} "Symbols"]
+     [:div {:style {:display "flex" :gap "20px" :font-size "11px" :font-family "monospace"}}
+      [:div
+       (for [[sym color desc] left-col]
+         ^{:key sym} [:div {:style {:display "flex" :align-items "center" :margin "2px 0"}}
+                      [:span {:style {:color color :margin-right "8px" :width "12px" :text-align "center"}} sym]
+                      [:span {:style {:color "#aaa"}} desc]])]
+      [:div
+       (for [[sym color desc] right-col]
+         ^{:key sym} [:div {:style {:display "flex" :align-items "center" :margin "2px 0"}}
+                      [:span {:style {:color color :margin-right "8px" :width "12px" :text-align "center"}} sym]
+                      [:span {:style {:color "#aaa"}} desc]])]]]))
 
 (defn character-status []
   (let [arms (:arms-bound @s)
         legs (:legs-bound @s)
-        gagged (:gagged @s)
-        in-combat (:in-combat @s)]
+        in-mouth (:in-mouth-gag @s)
+        over-mouth (:over-mouth-gag @s)
+        gagged (or in-mouth over-mouth)
+        in-combat (:in-combat @s)
+        ;; Opponent status (only visible in combat)
+        opp-arms (:opp-arms-bound @s)
+        opp-legs (:opp-legs-bound @s)
+        opp-in-mouth (:opp-in-mouth-gag @s)
+        opp-over-mouth (:opp-over-mouth-gag @s)
+        opp-restrained (or opp-arms opp-legs opp-in-mouth opp-over-mouth)]
     [:div {:style {:margin-bottom "10px" :padding "10px" :background "#1a1a1a" :border-radius "5px"}}
      [:div {:style {:font-weight "bold" :margin-bottom "5px" :color "#fff"}} "Status"]
      [:div {:style {:font-size "13px"}}
@@ -192,8 +210,21 @@
          (when in-combat [:div {:style {:color "#ff69b4"}} "IN COMBAT!"])
          (when arms [:div {:style {:color "#ff6b6b"}} (str "Arms bound (" arms ")")])
          (when legs [:div {:style {:color "#ff6b6b"}} (str "Legs bound (" legs ")")])
-         (when gagged [:div {:style {:color "#ff6b6b"}} (str "Gagged: " gagged)])]
-        [:div {:style {:color "#32cd32"}} "Free"])]]))
+         (when in-mouth [:div {:style {:color "#ff6b6b"}} (str "In mouth (" in-mouth ")")])
+         (when over-mouth [:div {:style {:color "#ff6b6b"}} (str "Over mouth (" over-mouth ")")])]
+        [:div {:style {:color "#32cd32"}} "Free"])]
+     ;; Opponent status when in combat
+     (when in-combat
+       [:div {:style {:margin-top "8px" :padding-top "8px" :border-top "1px solid #333"}}
+        [:div {:style {:font-weight "bold" :margin-bottom "5px" :color "#ff69b4"}} "Opponent"]
+        [:div {:style {:font-size "13px"}}
+         (if opp-restrained
+           [:div
+            (when opp-arms [:div {:style {:color "#ffa500"}} (str "Arms bound (" opp-arms ")")])
+            (when opp-legs [:div {:style {:color "#ffa500"}} (str "Legs bound (" opp-legs ")")])
+            (when opp-in-mouth [:div {:style {:color "#ffa500"}} (str "In mouth (" opp-in-mouth ")")])
+            (when opp-over-mouth [:div {:style {:color "#ffa500"}} (str "Over mouth (" opp-over-mouth ")")])]
+           [:div {:style {:color "#32cd32"}} "Free"])]])]))
 
 (defn location-info []
   (let [at-phone (:at-phone @s)
@@ -210,6 +241,30 @@
          (when at-door [:div {:style {:color "#daa520"}} "Door here"])
          (when at-sabotaged [:div {:style {:color "#ff0000"}} "Sabotaged!"])]
         [:div {:style {:color "#666"}} "Empty space"])]]))
+
+(defn noise-counter []
+  (let [neighbors (:neighbors @s)
+        n1 (or (:n1 neighbors) 0)
+        n2 (or (:n2 neighbors) 0)
+        max-noise (max n1 n2)
+        threshold 4
+        color (cond
+                (>= max-noise threshold) "#ff0000"
+                (>= max-noise 3) "#ffa500"
+                (>= max-noise 2) "#ffff00"
+                :else "#666")]
+    [:div {:style {:margin-bottom "10px" :padding "10px" :background "#1a1a1a" :border-radius "5px"}}
+     [:div {:style {:font-weight "bold" :margin-bottom "5px" :color "#fff"}} "Neighbors"]
+     [:div {:style {:font-size "13px"}}
+      [:div {:style {:display "flex" :justify-content "space-between"}}
+       [:span "North: "]
+       [:span {:style {:color color}} (str n1 "/4")]]
+      [:div {:style {:display "flex" :justify-content "space-between"}}
+       [:span "South: "]
+       [:span {:style {:color color}} (str n2 "/4")]]
+      (when (>= max-noise 3)
+        [:div {:style {:color "#ffa500" :margin-top "5px" :font-size "11px"}}
+         "Neighbors are getting suspicious..."])]]))
 
 (defn available-actions [player]
   (let [my-turn (= (keyword (:turn @s)) player)
@@ -295,6 +350,7 @@
   [:div {:style {:min-width "250px" :margin-left "15px"}}
    [character-status]
    [location-info]
+   [noise-counter]
    [available-actions player]
    [symbol-key]])
 
@@ -303,7 +359,13 @@
   (reagent/create-class
     {:component-did-mount
      (fn [_]
+       ;; Auto-set character for page refresh support
+       (reset! character :cat)
+       (refresh-state)
+       ;; Remove first to prevent duplicates during hot-reload
+       (.removeEventListener js/document "keydown" handle-keypress)
        (.addEventListener js/document "keydown" handle-keypress)
+       (when @refresh-interval (js/clearInterval @refresh-interval))
        (reset! refresh-interval (js/setInterval refresh-state 500)))
      :component-will-unmount
      (fn [_]
@@ -339,27 +401,32 @@
              [:div {:style {:font-weight "bold" :margin-bottom "5px" :color "#87ceeb"}} "Last Action:"]
              [:div {:style {:color "#fff" :font-size "14px"}} (or (:message @s) "—")]
              (when (:status-message @s)
-               [:div {:style {:color "#ffff00" :margin-top "5px" :font-style "italic"}} (:status-message @s)])]]
+               [:div {:style {:color "#ffff00" :margin-top "5px" :font-style "italic"}} (:status-message @s)])]
+            ;; Stats bar (moved up, below Last Action)
+            [:div {:style {:display "flex" :gap "15px" :margin-top "10px" :max-width "640px" :padding "8px" :background "#1a1a1a" :border-radius "5px" :flex-wrap "wrap" :font-size "13px"}}
+             [:div {:style {:color (if (= cat-treasure treasure-total) "#32cd32" "#ffd700")}}
+              (str "Treasure: " cat-treasure "/" treasure-total)
+              (when (= cat-treasure treasure-total) " - ESCAPE!")]
+             [:div {:style {:color (if caretaker-aware? "#ffa500" "#32cd32")}}
+              (if caretaker-aware? "AWARE!" "Unaware")]
+             [:div {:style {:color "#aaa"}}
+              (str "Score: Cat " (or (:cat scores) 0) " / Caretaker " (or (:caretaker scores) 0))]]]
 
            ;; Right: Side panel
-           [side-panel :cat]]
-
-          ;; Bottom stats bar
-          [:div {:style {:display "flex" :gap "15px" :margin-top "10px" :padding "8px" :background "#1a1a1a" :border-radius "5px" :flex-wrap "wrap" :font-size "13px"}}
-           [:div {:style {:color (if (= cat-treasure treasure-total) "#32cd32" "#ffd700")}}
-            (str "Treasure: " cat-treasure "/" treasure-total)
-            (when (= cat-treasure treasure-total) " - ESCAPE!")]
-           [:div {:style {:color (if caretaker-aware? "#ffa500" "#32cd32")}}
-            (if caretaker-aware? "AWARE!" "Unaware")]
-           [:div {:style {:color "#aaa"}}
-            (str "Score: Cat " (or (:cat scores) 0) " / Caretaker " (or (:caretaker scores) 0))]]]))}))
+           [side-panel :cat]]]))}))
 
 (defn care-page
   []
   (reagent/create-class
     {:component-did-mount
      (fn [_]
+       ;; Auto-set character for page refresh support
+       (reset! character :caretaker)
+       (refresh-state)
+       ;; Remove first to prevent duplicates during hot-reload
+       (.removeEventListener js/document "keydown" handle-keypress)
        (.addEventListener js/document "keydown" handle-keypress)
+       (when @refresh-interval (js/clearInterval @refresh-interval))
        (reset! refresh-interval (js/setInterval refresh-state 500)))
      :component-will-unmount
      (fn [_]
@@ -396,20 +463,21 @@
              [:div {:style {:font-weight "bold" :margin-bottom "5px" :color "#87ceeb"}} "Last Action:"]
              [:div {:style {:color "#fff" :font-size "14px"}} (or (:message @s) "—")]
              (when (:status-message @s)
-               [:div {:style {:color "#ffff00" :margin-top "5px" :font-style "italic"}} (:status-message @s)])]]
+               [:div {:style {:color "#ffff00" :margin-top "5px" :font-style "italic"}} (:status-message @s)])]
+            ;; Stats bar (moved up, below Last Action)
+            [:div {:style {:display "flex" :gap "15px" :margin-top "10px" :max-width "640px" :padding "8px" :background "#1a1a1a" :border-radius "5px" :flex-wrap "wrap" :font-size "13px"}}
+             [:div {:style {:color (if aware? "#ff0000" "#666")}}
+              (if aware? "AWARE - Intruder detected!" "Unaware")]
+             [:div {:style {:color "#00ffff"}}
+              (str "Tasks: " pending-count)
+              (when current-task (str " - " (:name current-task)))]
+             [:div {:style {:color "#aaa"}}
+              (str "Score: Cat " (or (:cat scores) 0) " / Caretaker " (or (:caretaker scores) 0))]]]
 
            ;; Right: Side panel
-           [side-panel :caretaker]]
+           [side-panel :caretaker]]]))})
+)
 
-          ;; Bottom stats bar
-          [:div {:style {:display "flex" :gap "15px" :margin-top "10px" :padding "8px" :background "#1a1a1a" :border-radius "5px" :flex-wrap "wrap" :font-size "13px"}}
-           [:div {:style {:color (if aware? "#ff0000" "#666")}}
-            (if aware? "AWARE - Intruder detected!" "Unaware")]
-           [:div {:style {:color "#00ffff"}}
-            (str "Tasks: " pending-count)
-            (when current-task (str " - " (:name current-task)))]
-           [:div {:style {:color "#aaa"}}
-            (str "Score: Cat " (or (:cat scores) 0) " / Caretaker " (or (:caretaker scores) 0))]]]))}))
 
 (defn about-page []
   (fn [] [:span.main

@@ -6,42 +6,73 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Cat-reagent is a 2-player browser-based stealth game where one player controls a Cat (burglar) and the other controls a Caretaker trying to catch them. Built with Clojure (backend) and ClojureScript/Reagent (frontend).
 
-## Development Commands
+## Development Workflow
+
+### Starting Development
 
 ```bash
-# Development with hot reload (Figwheel)
-lein figwheel
-# Server at http://localhost:3449, nREPL at localhost:7002
-
-# Development standalone server (better for websockets)
-lein do clean, run
-# Server at http://localhost:3000
-
-# REPL development
+# Terminal 1: Start backend with REPL (preferred)
 lein repl
-# Then: (start-server) / (stop-server)
-# ClojureScript REPL: (cljs)
+# Then in REPL: (start-server)
+# Server at http://localhost:3000, nREPL at localhost:7002
 
-# Production build
-lein do clean, uberjar
+# Terminal 2: Start frontend with hot reload
+./start-frontend.sh
+# Or: npx shadow-cljs watch app
+# Frontend at http://localhost:3449 (proxies API to :3000)
 ```
+
+Alternative (no REPL access):
+```bash
+./restart-backend.sh  # or: lein run
+```
+
+### Making Backend Changes
+
+**Prefer REPL over server restarts.** If server started with `lein repl`:
+
+```clojure
+;; Reload changed namespaces
+(require '[cat-reagent.game :as g] :reload)
+(require '[cat-reagent.game.board :as b] :reload)
+(require '[cat-reagent.game.combat :as combat] :reload)
+```
+
+Or connect from another terminal:
+```bash
+lein repl :connect localhost:7002
+```
+
+Only restart the server for:
+- Changes to `server.clj` or `handler.clj` routes
+- Dependency changes in `project.clj`
+
+### Making Frontend Changes
+
+Shadow-cljs handles hot reload automatically. Just save the file and changes appear in the browser.
+
+### Helper Scripts
+
+- `./restart-backend.sh` - Kill and restart the backend server (waits for startup)
+- `./start-frontend.sh` - Start shadow-cljs watch for frontend hot reload
 
 ## Architecture
 
 **Backend (Clojure):** `src/clj/cat_reagent/`
-- `server.clj` - Entry point, starts Jetty
-- `handler.clj` - Reitit routes and HTTP handlers
-- `game.clj` - Core game logic, state management (939 lines)
-- `ascii.clj` - Board visualization utilities
+- `server.clj` - Entry point, starts Jetty on port 3000
+- `handler.clj` - Reitit routes and HTTP handlers, transforms game state for frontend
+- `game.clj` - Core game logic, turn processing, command dispatch
+- `game/` - Submodules: `board.clj`, `combat.clj`, `movement.clj`, `sound.clj`, `state.clj`, `constants.clj`
 
 **Frontend (ClojureScript):** `src/cljs/cat_reagent/`
-- `core.cljs` - Reagent UI components, Quil rendering, keyboard handling
+- `core.cljs` - Reagent UI components, HTML/CSS rendering, keyboard handling
 
 **Data Flow:**
 1. Browser sends keypress via HTTP GET to `/play?command={cmd}&player={:cat|:caretaker}`
 2. `handler.clj` calls `game/play`
 3. `game.clj` modifies `@s` atom (global game state)
-4. JSON response rendered by Quil/Reagent
+4. `handler.clj` transforms state via `pass-state` for the specific player's view
+5. JSON response rendered by Reagent components
 
 ## Key Game Concepts
 
@@ -49,21 +80,53 @@ lein do clean, uberjar
 - `:turn` - Current player (`:cat` or `:caretaker`)
 - `:move-edges` / `:sound-edges` - Loom graphs for pathfinding and sound propagation
 - `:characters` - Map with `:cat` and `:caretaker` submaps (location, facing, bound limbs, etc.)
+- `:treasure-map` - Position -> value map (concentrated treasure, color-coded by value)
+- `:neighbors` - Noise counters for win condition (`:n1`, `:n2`)
+- `:patrol-tasks` - Caretaker's current objectives
 
 **Board as Graph:** Uses Loom library for Dijkstra pathfinding and line-of-sight calculations.
 
-**Combat System:** Dice rolls, body part binding (arms/legs), gagging mechanics.
+**Combat System:** Dice rolls, body part binding (arms/legs at 9+ = immobilized), gagging mechanics (in-mouth + over-mouth layers).
+
+**Victory Conditions:**
+- Cat: Collect 50 treasure and escape through front door
+- Caretaker: Call 911 (must be aware), or neighbors call police (noise > 3)
 
 ## API Endpoints
 
 - `GET /play?command={cmd}&player={player}` - Process game commands
-- `GET /get-state?player={player}` - Fetch current state
+- `GET /get-state?player={player}` - Fetch current state (filtered by player visibility)
 - `GET /restart?player={player}` - Reset game
 
 ## Key Libraries
 
 - **Ring/Reitit** - HTTP server and routing
 - **Reagent** - React wrapper for ClojureScript
-- **Quil** - Graphics rendering
+- **Shadow-cljs** - ClojureScript compiler with hot reload
 - **Loom** - Graph algorithms (pathfinding, line-of-sight)
 - **Transit** - JSON serialization
+
+## Linting
+
+Use clj-kondo for syntax checking:
+```bash
+clj-kondo --lint src/clj/cat_reagent/
+clj-kondo --lint src/cljs/cat_reagent/
+```
+
+## Known Issues / TODO
+
+### REPL Not Starting
+
+`lein repl` currently fails with cider-nrepl compatibility errors:
+```
+Error loading cider.nrepl: Syntax error compiling at (cider/nrepl.clj:1:1)
+Unable to resolve var: cider.nrepl/wrap-apropos
+```
+
+**To fix:** Update cider-nrepl version in `project.clj` (in `:dev` profile) to be compatible with Clojure 1.10. The current version may be too old. Try:
+```clojure
+[cider/cider-nrepl "0.28.0"]  ; or latest compatible version
+```
+
+**Workaround:** Use `lein run` for now (no hot reload, requires restart for backend changes).

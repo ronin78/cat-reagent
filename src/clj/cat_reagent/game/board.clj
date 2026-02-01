@@ -106,6 +106,18 @@
       stack? (frequencies (take n (simple/sample sample-vec :replace true)))
       :else (set (take n (simple/sample sample-vec))))))
 
+(defn rand-concentrated-treasure
+  "Place total-treasure amount across num-positions spots.
+   Results in higher-value treasure piles."
+  [excluded-set total-treasure num-positions]
+  (let [all-positions (set (map u/keynum c/space-nums))
+        available (vec (clojure.set/difference all-positions excluded-set))
+        ;; Pick the positions
+        positions (take num-positions (simple/sample available))
+        ;; Distribute treasure: sample positions with replacement
+        distribution (frequencies (take total-treasure (simple/sample (vec positions) :replace true)))]
+    distribution))
+
 ;; Map symbol generation
 (defn map-to-symbol
   ([s]
@@ -227,17 +239,26 @@
            dir-vec))))))
 
 ;; Map rendering
+(defn treasure-color
+  "Return color based on treasure value"
+  [value]
+  (cond
+    (>= value 5) "gold"      ; jackpot!
+    (>= value 3) "orange"    ; good haul
+    (>= value 2) "yellow"    ; decent
+    :else "green"))          ; standard
+
 (defn map-pos-to-char
   [s pk]
   (let [p (get-in s [:characters pk])
-        select-map (map-to-symbol s (can-see? s (:loc p) (:face p) c/see-around) pk)
+        visible-set (set (can-see? s (:loc p) (:face p) c/see-around))
+        select-map (map-to-symbol s visible-set pk)
         memory-map (:memory-map p)
         ;; Add footprint memory for Caretaker (shown in grey)
         footprint-memory-map (when (= pk :caretaker)
                                (let [fps-memory (get-in s [:characters :caretaker :footprint-memory] #{})
-                                     current-sight (set (can-see? s (:loc p) (:face p) c/see-around))
                                      ;; Only show remembered footprints not currently visible
-                                     old-fps (set/difference fps-memory current-sight)]
+                                     old-fps (set/difference fps-memory visible-set)]
                                  (into {} (map #(hash-map % (:footprint c/item-map)) old-fps))))
         cm (if (= (st/character-position s :cat) (st/character-position s :caretaker))
              {(st/character-position s :cat) (st/color-vec (:fight c/item-map) pk false)}
@@ -246,11 +267,17 @@
         ;; Add footprint memory to memory map (in grey)
         fpmm (into {} (map #(hash-map (key %) (st/color-vec (val %) pk true)) footprint-memory-map))
         sm (into {} (map #(hash-map (key %) (st/color-vec (val %) pk false)) select-map))
+        ;; Color treasure based on value
+        treasure-map (:treasure-map s)
+        visible-treasure (filter #(contains? visible-set (key %)) treasure-map)
+        tm (into {} (map (fn [[pos val]]
+                           {pos [(:treasure c/item-map) (treasure-color val)]})
+                         visible-treasure))
         om (when (contains? select-map (st/character-position s (st/opponent-key pk))) (hash-map (get-in s [:characters (st/opponent-key pk) :loc]) (st/color-vec ((st/opponent-key pk) c/item-map) pk false)))
         nm (when-let [noise-icon (:noise-icon p)]
              (when-let [noise-loc (:pos noise-icon)]
                (hash-map noise-loc (st/color-vec (:noise c/item-map) pk false))))]
-    (-> (merge mm fpmm sm nm om cm)
+    (-> (merge mm fpmm sm tm nm om cm)  ; tm after sm to override default treasure colors
         (cond-> (get-in s [:characters pk :cursor]) (assoc (last (get-in s [:characters pk :cursor])) (st/color-vec (:cursor c/item-map) pk false))))))
 
 ;; Default wall configurations
