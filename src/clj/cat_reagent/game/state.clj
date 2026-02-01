@@ -83,7 +83,9 @@
                    "," :grey      ; footprint
                    "?" :yellow    ; disturbed treasure
                    "!" :cyan      ; patrol target
-                   "x" :red}]     ; sabotaged
+                   "x" :red       ; sabotaged
+                   "|" :grey      ; vertical wall
+                   "_" :grey}]    ; horizontal wall
     (cond
       m [s :grey]
       (get color-map s) [s (get color-map s)]

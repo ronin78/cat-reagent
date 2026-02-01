@@ -36,8 +36,10 @@
       (update s :patrol-tasks conj (assoc template :loc chosen-loc)))))
 
 ;; Wall and board setup - use defaults from board.clj
-(def wall-set (set/union (apply set/union b/default-vwalls)
-                          (apply set/union b/default-hwalls)))
+(def vwalls b/default-vwalls)
+(def hwalls b/default-hwalls)
+(def wall-set (set/union (apply set/union vwalls)
+                          (apply set/union hwalls)))
 
 ;; Game initialization
 (defn initialize
@@ -55,10 +57,18 @@
                                                    #{cat-start})
         caretaker-start (rand-nth (vec valid-caretaker-positions))
         sound-g (b/make-neighbors (b/sound-walls base-g wall-set))
+        ;; Caretaker knows their house layout - walls, doors, phones
+        vwall-symbols (into {} (map #(vector % (:vwall c/item-map)) (apply set/union vwalls)))
+        hwall-symbols (into {} (map #(vector % (:hwall c/item-map)) (apply set/union hwalls)))
+        door-symbols (into {} (map #(vector (key %) (:front-door c/item-map)) door-map))
+        phone-symbols (into {} (map #(vector (key %) (:phone c/item-map)) phone-map))
+        caretaker-memory (merge vwall-symbols hwall-symbols door-symbols phone-symbols)
         base-state {:turn :cat
                     :turn-number 0
                     :move-edges base-g
                     :sound-edges sound-g
+                    :vwalls vwalls
+                    :hwalls hwalls
                     :door-list door-map
                     :phone-map phone-map
                     :treasure-map treasure-map
@@ -73,7 +83,8 @@
                                  :caretaker {:loc caretaker-start
                                              :face caretaker-face
                                              :max-move 2
-                                             :message "You are the Caretaker."}}}]
+                                             :message "You are the Caretaker."
+                                             :memory-map caretaker-memory}}}]
     (or (assign-patrol-task base-state) base-state)))
 
 (def s (atom (initialize)))
