@@ -11,21 +11,15 @@ Cat-reagent is a 2-player browser-based stealth game where one player controls a
 ### Starting Development
 
 ```bash
-# Terminal 1: Start backend with REPL (preferred)
-lein repl
-# Then in REPL: (start-server)
-# Server at http://localhost:3000, nREPL at localhost:7002
-
-# Terminal 2: Start frontend with hot reload
-./start-frontend.sh
-# Or: npx shadow-cljs watch app
-# Frontend at http://localhost:3449 (proxies API to :3000)
+./start-dev.sh
 ```
 
-Alternative (no REPL access):
-```bash
-./restart-backend.sh  # or: lein run
-```
+This starts everything:
+- REPL with nREPL server (port in `.nrepl-port`)
+- Game server at http://localhost:3000
+- Shadow-cljs with hot reload at http://localhost:3449
+
+Logs are in `/tmp/cat-*.log`
 
 ### Making Backend Changes
 
@@ -38,12 +32,12 @@ Alternative (no REPL access):
 (require '[cat-reagent.game.combat :as combat] :reload)
 ```
 
-Or connect from another terminal:
+Connect to the running REPL from another terminal:
 ```bash
-lein repl :connect localhost:7002
+lein repl :connect $(cat .nrepl-port)
 ```
 
-Only restart the server for:
+Only restart the full server for:
 - Changes to `server.clj` or `handler.clj` routes
 - Dependency changes in `project.clj`
 
@@ -53,8 +47,9 @@ Shadow-cljs handles hot reload automatically. Just save the file and changes app
 
 ### Helper Scripts
 
-- `./restart-backend.sh` - Kill and restart the backend server (waits for startup)
-- `./start-frontend.sh` - Start shadow-cljs watch for frontend hot reload
+- `./start-dev.sh` - Start full dev environment (REPL + server + frontend)
+- `./stop-dev.sh` - Stop all dev processes
+- `./start-frontend.sh` - Start shadow-cljs watch only (if running REPL manually)
 
 ## Architecture
 
@@ -114,19 +109,3 @@ clj-kondo --lint src/clj/cat_reagent/
 clj-kondo --lint src/cljs/cat_reagent/
 ```
 
-## Known Issues / TODO
-
-### REPL Not Starting
-
-`lein repl` currently fails with cider-nrepl compatibility errors:
-```
-Error loading cider.nrepl: Syntax error compiling at (cider/nrepl.clj:1:1)
-Unable to resolve var: cider.nrepl/wrap-apropos
-```
-
-**To fix:** Update cider-nrepl version in `project.clj` (in `:dev` profile) to be compatible with Clojure 1.10. The current version may be too old. Try:
-```clojure
-[cider/cider-nrepl "0.28.0"]  ; or latest compatible version
-```
-
-**Workaround:** Use `lein run` for now (no hot reload, requires restart for backend changes).

@@ -88,13 +88,13 @@
 
   :profiles {:dev {;; :repl-options {:init-ns cat-reagent.repl :timeout 120000}
                    :repl-options {:init-ns cat-reagent.repl :timeout 120000 :nrepl-middleware [cider.piggieback/wrap-cljs-repl]}
-                   :dependencies [[cider/piggieback "0.4.2"]
+                   :dependencies [[cider/piggieback "0.5.3"]
                                   [binaryage/devtools "0.9.10"]
                                   [ring/ring-mock "0.3.2"]
                                   [ring/ring-devel "1.7.1"]
                                   [prone "1.6.3"]
                                   [figwheel-sidecar "0.5.19"]
-                                  [nrepl "0.6.0"]
+                                  [nrepl "1.3.0"]
                                   [pjstadig/humane-test-output "0.9.0"]
                                   
  ]

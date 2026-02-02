@@ -108,9 +108,11 @@
 (defn make-ambush
   [s]
   (let [in-combat? (is-combat? s)
-        was-aware? (is-aware? s)]
+        was-aware? (is-aware? s)
+        cat-initiated? (= (:turn s) :cat)]
     (cond
-      (and in-combat? (not was-aware?)) (assoc-in s [:characters :caretaker :ambush?] true)
+      ;; Only Cat gets ambush bonus when surprising unaware Caretaker
+      (and in-combat? (not was-aware?) cat-initiated?) (assoc-in s [:characters :caretaker :ambush?] true)
       :else s)))
 
 (defn unambush

@@ -142,9 +142,10 @@
                          (let [sabotaged (:sabotaged s)
                                visible-sabotaged (set/intersection (or sabotaged #{}) (set v))]
                            (into {} (map #(hash-map % (:sabotaged c/item-map)) visible-sabotaged))))
-         ;; Priority: character > sabotaged > patrol-target > disturbed > footprint > objects
-         ;; First build visible objects, then merge patrol target (always visible to Caretaker)
-         visible-objects (select-keys (merge (map-to-symbol s) footprint-map disturbed-map sabotaged-map character-map) v)
+         ;; Priority (highest to lowest): character > sabotaged > patrol-target > objects > disturbed > footprint
+         ;; Later maps in merge override earlier ones, so put lowest priority first
+         ;; Patrol target merged last so it's always visible (even outside normal view range)
+         visible-objects (select-keys (merge footprint-map disturbed-map (map-to-symbol s) sabotaged-map character-map) v)
          object-map (merge visible-objects patrol-target-map)]
      (merge object-map (into {} (map #(hash-map % ".") (filter #(not (contains? object-map %)) v)))))))
 

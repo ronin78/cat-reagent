@@ -51,15 +51,27 @@
   (let [base-g (b/cut-walls b/base-graph wall-set)
         door-map {(u/keynum (- (* c/num-rows c/row-length) (/ c/row-length 2))) true  ; front door
                   (u/keynum (+ 1 (* 4 c/row-length))) false}                          ; side door
+        ;; Windows on left edge (rows 3-5) and right edge (rows 14-16)
+        ;; Left edge positions: row * row-length + 1
+        ;; Right edge positions: row * row-length
+        window-positions (set (concat
+                                (map #(u/keynum (+ 1 (* % c/row-length))) [2 3 4])      ; left windows
+                                (map #(u/keynum (* % c/row-length)) [13 14 15])))       ; right windows
+        ;; All valid entry points for the Cat
+        entry-points (concat (keys door-map) (vec window-positions))
         phone-map (into {} (map #(hash-map % true) (b/rand-non-overlap (set/union wall-set (set (keys door-map))) 2 false)))
         ;; Concentrated treasure: 50 treasure in ~15 positions = avg 3.3 per spot
         treasure-map (b/rand-concentrated-treasure (set/union wall-set (set (keys door-map)) (set (keys phone-map))) c/treasure-amt 15)
         caretaker-face (rand-nth [:up :down :left :right])
-        cat-start (first (keys door-map))
+        cat-start (rand-nth entry-points)
+        entry-type (cond
+                     (contains? (set (keys door-map)) cat-start)
+                     (if (get door-map cat-start) "front door" "side door")
+                     :else "window")
         valid-caretaker-positions (set/difference (set (map u/keynum c/space-nums))
                                                    wall-set
                                                    (set (keys phone-map))
-                                                   #{cat-start})
+                                                   (set entry-points))
         caretaker-start (rand-nth (vec valid-caretaker-positions))
         sound-g (b/make-neighbors (b/sound-walls base-g wall-set))
         ;; Caretaker knows their house layout - walls, doors, phones
@@ -75,6 +87,7 @@
                     :vwalls vwalls
                     :hwalls hwalls
                     :door-list door-map
+                    :window-list window-positions
                     :phone-map phone-map
                     :treasure-map treasure-map
                     :disturbed-treasure #{}
@@ -84,7 +97,7 @@
                     :sabotaged #{}
                     :scores {:cat 0 :caretaker 0}
                     :neighbors {:n1 0 :n2 0}
-                    :characters {:cat {:loc cat-start :message "You are the Cat." :face :up}
+                    :characters {:cat {:loc cat-start :message (str "You are the Cat. You entered through the " entry-type ".") :face :up}
                                  :caretaker {:loc caretaker-start
                                              :face caretaker-face
                                              :max-move 2
@@ -259,22 +272,17 @@
                   :left  (fn [s] (mv/move-cursor s -1))
                   :down  (fn [s] (mv/move-cursor s c/row-length))
                   :up    (fn [s] (mv/move-cursor s (- c/row-length)))
-                  :s (let [at-phone (contains? phone-map char-pos)
-                           at-door (contains? (:door-list s) char-pos)
-                           can-sabotage (or at-phone at-door)]
-                       (when can-sabotage
-                         (fn [s]
-                           (let [noise (u/dice-roll 1)]
-                             (cond
-                               (st/is-sabotaged? s char-pos) (st/update-status s "This location is already sabotaged.")
-                               (= turn :caretaker) (st/update-status s "Why would you sabotage your own house?")
-                               :else (update-and-change
-                                       (-> s
-                                           (st/sabotage-location char-pos)
-                                           (snd/hear-alert noise))
-                                       (if at-phone
-                                         (str "You cut the phone line! You make a " (snd/noise-word noise) ".")
-                                         (str "You jam the door! You make a " (snd/noise-word noise) "."))))))))
+                  :s (when (contains? phone-map char-pos)
+                       (fn [s]
+                         (let [noise (u/dice-roll 1)]
+                           (cond
+                             (st/is-sabotaged? s char-pos) (st/update-status s "The phone line is already cut.")
+                             (= turn :caretaker) (st/update-status s "Why would you sabotage your own phone?")
+                             :else (update-and-change
+                                     (-> s
+                                         (st/sabotage-location char-pos)
+                                         (snd/hear-alert noise))
+                                     (str "You cut the phone line! You make a " (snd/noise-word noise) "."))))))
                   :c (when (and (contains? phone-map char-pos) (st/is-aware? s))
                        (fn [s]
                          (let [noise (u/dice-roll 2)]
@@ -286,17 +294,12 @@
                                          (st/victory :caretaker :911)
                                          (snd/hear-alert noise))
                                      "You call 911! The police are on their way!")))))
-                  :f (when (st/is-sabotaged? s char-pos)
+                  :f (when (and (contains? phone-map char-pos) (st/is-sabotaged? s char-pos))
                        (fn [s]
-                         (let [noise (u/dice-roll 1)
-                               at-phone (contains? phone-map char-pos)
-                               at-door (contains? (:door-list s) char-pos)]
-                           (cond
-                             (> (st/body-part (st/current-player s) :arms) 0) (st/update-status s "You can't fix anything with your arms bound.")
-                             (= turn :cat) (st/update-status s "Why would you fix something you sabotaged?")
-                             at-phone (update-and-change (st/fix-sabotaged s char-pos) "You fix the phone line!")
-                             at-door (update-and-change (st/fix-sabotaged s char-pos) "You unjam the door!")
-                             :else (update-and-change (st/fix-sabotaged s char-pos) "You fix the sabotaged location.")))))
+                         (cond
+                           (> (st/body-part (st/current-player s) :arms) 0) (st/update-status s "You can't fix anything with your arms bound.")
+                           (= turn :cat) (st/update-status s "Why would you fix something you sabotaged?")
+                           :else (update-and-change (st/fix-sabotaged s char-pos) "You fix the phone line!"))))
                   :t (when (contains? treasure-map char-pos)
                        (fn [s] (let [treasure (char-pos (:treasure-map s))
                                      noise (u/dice-roll 1)]

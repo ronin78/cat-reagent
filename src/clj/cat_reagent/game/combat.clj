@@ -21,7 +21,7 @@
         your-arms (if-let [yours (st/body-part p :arms)] yours 0)
         roll (cond
                (and (= :cat (:turn s)) (> your-arms 6)) (u/dice-roll 2)
-               (= :cat (:turn s)) (+ 1 (u/dice-roll))
+               (= :cat (:turn s)) (+ 2 (u/dice-roll))  ;; Cat is an expert: +2 bonus
                (> your-arms 6) (- (u/dice-roll) 3)
                :else (u/dice-roll))
         opp-roll (if (> cs 6) (- (u/dice-roll) 3) (u/dice-roll))
@@ -103,7 +103,7 @@
         your-arms (if-let [yours (st/body-part p :arms)] yours 0)
         roll (cond
                (and (= :cat (:turn s)) (> your-arms 6)) (u/dice-roll 2)
-               (= :cat (:turn s)) (+ 1 (u/dice-roll))
+               (= :cat (:turn s)) (+ 2 (u/dice-roll))  ;; Cat is an expert: +2 bonus
                (> your-arms 6) (- (u/dice-roll) 3)
                :else (u/dice-roll))
         opp-roll (if (> cs 6) (- (u/dice-roll) 3) (u/dice-roll))
